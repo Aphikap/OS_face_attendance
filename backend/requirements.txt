@@ -1,4 +1,4 @@
 flask
 requests
-numpy
-opencv-contrib-python-headless
+numpy<2
+opencv-python-headless

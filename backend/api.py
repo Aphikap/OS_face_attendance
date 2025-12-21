@@ -507,6 +507,11 @@ def checkin():
         "image": img_b64
     }), 200
 
+# [NEW] แจ้งเตือนเมื่อเข้าผิด port
+@app.route("/")
+def index_root():
+    return "Backend is running. Please access the Frontend at port 8080 (e.g., http://YOUR_IP:8080).", 200
+
 if __name__ == "__main__":
     init_db()
     app.run(host="0.0.0.0", port=5000)

@@ -31,16 +31,27 @@ PREVIEW_BRUTAL = os.environ.get("PREVIEW_BRUTAL", "false").lower() == "true"
 LATEST_FACE_OK = False
 
 # =========================
-# Phone camera URL
+# Phone camera URL or Local Camera Index
 # =========================
-def phone_cam_url():
+def get_camera_source():
+    # 1. เช็คว่ามี CAMERA_INDEX ไหม (สำหรับต่อกล้อง USB/Pi Camera โดยตรง)
+    idx = os.environ.get("CAMERA_INDEX", "").strip()
+    if idx:
+        try:
+            return int(idx)
+        except ValueError:
+            pass
+    
+    # 2. ถ้าไม่มี ให้ใช้ PHONE_CAM_URL
     url = os.environ.get("PHONE_CAM_URL", "").strip()
     if not url:
-        raise RuntimeError("PHONE_CAM_URL is not set")
+        raise RuntimeError("Must set CAMERA_INDEX (int) or PHONE_CAM_URL (http...)")
     return url
 
-def is_mjpeg_url(url: str) -> bool:
-    u = (url or "").lower()
+def is_mjpeg_url(url) -> bool:
+    if isinstance(url, int):
+        return False
+    u = (str(url) or "").lower()
     return any(k in u for k in ["/video", "mjpeg", "stream"]) and not u.endswith((".jpg", ".jpeg", ".png"))
 
 # =========================
@@ -81,7 +92,7 @@ def _decode_jpg_bytes(jpg_bytes: bytes):
     arr = np.frombuffer(jpg_bytes, dtype=np.uint8)
     img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
     return img
-
+    
 def bgr_to_b64(img_bgr):
     ok, buf = cv2.imencode(".jpg", img_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
     if not ok:
@@ -97,6 +108,32 @@ def encode_stream_jpg(img_bgr):
 # =========================
 # Grabbers
 # =========================
+def local_cam_grabber(idx: int):
+    print(f"Starting local camera grabber on index {idx}...")
+    while True:
+        cap = cv2.VideoCapture(idx)
+        if not cap.isOpened():
+            print(f"Cannot open camera {idx}, retrying in 3s...")
+            time.sleep(3)
+            continue
+            
+        # Try setting common resolution preferred by Pi to avoid lags
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                print("Failed to read frame from local camera")
+                break
+            
+            frame = _resize_for_stream(frame)
+            set_latest_frame(frame)
+            time.sleep(0.01) # yield
+            
+        cap.release()
+        time.sleep(1)
+
 def snapshot_grabber(url: str):
     session = requests.Session()
     while True:
@@ -142,12 +179,15 @@ def mjpeg_grabber(url: str):
             time.sleep(0.3)
 
 def start_grabber():
-    url = phone_cam_url()
-    if is_mjpeg_url(url):
-        t = threading.Thread(target=mjpeg_grabber, args=(url,), daemon=True)
+    source = get_camera_source()
+    if isinstance(source, int):
+        t = threading.Thread(target=local_cam_grabber, args=(source,), daemon=True)
+        t.start()
+    elif is_mjpeg_url(source):
+        t = threading.Thread(target=mjpeg_grabber, args=(source,), daemon=True)
         t.start()
     else:
-        t = threading.Thread(target=snapshot_grabber, args=(url,), daemon=True)
+        t = threading.Thread(target=snapshot_grabber, args=(source,), daemon=True)
         t.start()
 
 try:

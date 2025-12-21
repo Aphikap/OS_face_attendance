@@ -1,7 +1,9 @@
 # Face Attendance Project
-
+172.20.10.2
+usernam face-attendance
+password 1234
 ## Project Structure
-
+pi http://172.20.10.2:8888/
 ```
 face-attendance/
 |

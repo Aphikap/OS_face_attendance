@@ -42,11 +42,11 @@ def get_best_face(img_bgr, brutal=False):
 
     # โหมดโหด: เข้มขึ้น (กรองลายไม้/ผนัง)
     if brutal:
-        minNeighbors = 8
-        minSize = (110, 110)
+        minNeighbors = 6  # ลดจาก 8 เพื่อให้เจอง่ายขึ้น
+        minSize = (90, 90) # ลดจาก 110x110 (เผื่อหน้าเล็ก/ไกล)
     else:
         minNeighbors = 5
-        minSize = (80, 80)
+        minSize = (70, 70) # ลดจาก 80x80
 
     for angle in [0, -90, 90]:
         rotated = rotate_image(img_bgr, angle)
@@ -70,8 +70,8 @@ def get_best_face(img_bgr, brutal=False):
             bright = brightness_mean(crop)
 
             # เกณฑ์คุณภาพ (ปรับทีหลังได้)
-            ok_sharp = blur_score >= 60.0
-            ok_bright = 60.0 <= bright <= 190.0
+            ok_sharp = blur_score >= 45.0  # ลดจาก 60.0
+            ok_bright = 50.0 <= bright <= 220.0 # ขยาย range (เดิม 60-190)
             ok_size = (w >= minSize[0] and h >= minSize[1])
             ok = ok_sharp and ok_bright and ok_size
 
@@ -88,6 +88,10 @@ def get_best_face(img_bgr, brutal=False):
                 },
                 "ok": ok,
             }
+
+            # ถ้าเจอหน้าแล้ว และ ok เลย ก็หยุดวนลูปมุมอื่นได้ (ลดภาระ CPU)
+            if ok:
+                return best
 
     return best
 
